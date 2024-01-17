@@ -4,6 +4,11 @@
       127.106012,
       37.353433
     ],
-    "state": "green"
+    "directions": {
+      "north": "green",
+      "east": "red",
+      "south": "red",
+      "west": "red"
+    }
   }
 ]

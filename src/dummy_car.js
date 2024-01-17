@@ -12,67 +12,6 @@ const ws = new WebSocket('ws://localhost:7002/ws/my-location', {
   },
 });
 
-
-// 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(i, pathPointData, totalSeconds, token) {
-    const baseSpeed = 30 + 20 * Math.sin(Math.PI * totalSeconds / 60);
-    const randomFactor = 1 + (Math.random() - 0.5) / 10;
-    const speed = baseSpeed * randomFactor;
-    return {
-        requestType: "UPDATE",
-        jwt: `Bearer ${token}`,
-        data: {
-            vehicleId: 1,
-            longitude: pathPointData[i].location[0],
-            latitude: pathPointData[i].location[1],
-            isUsingNavi: false,
-            meterPerSec: speed / 3.6,
-            direction: i > 0 ? calculateBearing(
-                pathPointData[i-1].location[1] * Math.PI/180,
-                pathPointData[i-1].location[0] * Math.PI/180,
-                pathPointData[i].location[1] * Math.PI/180,
-                pathPointData[i].location[0] * Math.PI/180
-            ) : 0,
-            timestamp: new Date().toISOString()
-        }
-    };
-}
-
-// 신호등 상태 확인 및 대기 함수
-async function checkTrafficLightsAndWait(pathPointData, i) {
-    if (i < pathPointData.length - 1) {
-        let trafficLights = await checkTrafficLightState();
-        let closestTrafficLight = null;
-        let minDistance = Infinity;
-
-        // 1. 다음 위치 좌표가 신호등과 가까워질 때
-        // 2. 다음 위치 좌표에서 가장 가까운 신호등 하나를 선정
-        for (let j = 0; j < trafficLights.length; j++) {
-            const distanceToTrafficLight = calculateDistance(
-                pathPointData[i+1].location[1],
-                pathPointData[i+1].location[0],
-                trafficLights[j].location[1],
-                trafficLights[j].location[0]
-            );
-
-            if (distanceToTrafficLight < minDistance) {
-                minDistance = distanceToTrafficLight;
-                closestTrafficLight = trafficLights[j];
-            }
-        }
-
-        // 3. 선정된 신호등이 빨간불이면 초록불이 될 때까지 기다림
-        if (minDistance < 50 && closestTrafficLight.state === 'red') {
-            while (closestTrafficLight.state === 'red') {
-                console.log('Waiting for green light...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                trafficLights = await checkTrafficLightState(); // 신호등 상태 정보 갱신
-                closestTrafficLight = trafficLights.find(light => light.id === closestTrafficLight.id);
-            }
-        }
-    }
-}
-
 ws.on('open', async function open() {
     console.log('Connected to the server');
 
@@ -110,6 +49,7 @@ ws.on('open', async function open() {
             }
         }
         ws.close();
+        console.log(`Total time: ${totalSeconds} seconds`);
     } catch(err) {
         console.log('Error:', err);
     }
@@ -127,6 +67,33 @@ ws.on('error', function error(err) {
   console.error(err);
 });
 
+// 차량 위치 업데이트 데이터 생성 함수
+function createUpdateData(i, pathPointData, totalSeconds, token) {
+    const baseSpeed = 30 + 20 * Math.sin(Math.PI * totalSeconds / 60);
+    const randomFactor = 1 + (Math.random() - 0.5) / 10;
+    const speed = baseSpeed * randomFactor;
+    return {
+        requestType: "UPDATE",
+        jwt: `Bearer ${token}`,
+        data: {
+            vehicleId: 1,
+            longitude: pathPointData[i].location[0],
+            latitude: pathPointData[i].location[1],
+            isUsingNavi: false,
+            meterPerSec: speed / 3.6,
+            direction: i > 0 ? calculateBearing(
+                pathPointData[i-1].location[1] * Math.PI/180,
+                pathPointData[i-1].location[0] * Math.PI/180,
+                pathPointData[i].location[1] * Math.PI/180,
+                pathPointData[i].location[0] * Math.PI/180
+            ) : 0,
+            timestamp: new Date().toISOString()
+        }
+    };
+}
+
+const directionsOrder = ['north', 'east', 'south', 'west'];
+
 async function checkTrafficLightState() {
     let trafficLights = null;
     try {
@@ -139,6 +106,68 @@ async function checkTrafficLightState() {
 
     return trafficLights;
 }
+
+// 신호등 상태 확인 및 대기 함수
+async function checkTrafficLightsAndWait(pathPointData, i) {
+    if (i < pathPointData.length - 1) {
+        let trafficLights = await checkTrafficLightState();
+        let closestTrafficLight = null;
+        let minDistance = Infinity;
+
+        // 다음 위치 좌표에서 가장 가까운 신호등 하나를 선정
+        for (let j = 0; j < trafficLights.length; j++) {
+            const distanceToTrafficLight = calculateDistance(
+                pathPointData[i+1].location[1],
+                pathPointData[i+1].location[0],
+                trafficLights[j].location[1],
+                trafficLights[j].location[0]
+            );
+
+            if (distanceToTrafficLight < minDistance) {
+                minDistance = distanceToTrafficLight;
+                closestTrafficLight = trafficLights[j];
+            }
+        }
+
+        const distanceToNextLocation = calculateDistance(
+            pathPointData[i+1].location[1],
+            pathPointData[i+1].location[0],
+            closestTrafficLight.location[1],
+            closestTrafficLight.location[0]
+        );
+
+        console.log(`Closest traffic light: ${minDistance}`);
+        console.log(`Distance to next location: ${distanceToNextLocation}`);
+
+        if(distanceToNextLocation > minDistance) {
+          return ;
+        }
+
+        // 선정된 신호등의 해당 방향 신호가 빨간불이면 초록불이 될 때까지 기다림
+        const direction = calculateDirection(pathPointData[i].location, pathPointData[i+1].location);
+        if (minDistance < 50 && closestTrafficLight.directions[direction] === 'red') {
+            while (closestTrafficLight.directions[direction] === 'red') {
+                console.log(`Waiting for green light at ${closestTrafficLight.location} in the ${direction} direction. Current signal: ${closestTrafficLight.directions[direction]}`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                trafficLights = await checkTrafficLightState();
+                closestTrafficLight = trafficLights.find(light => light.id === closestTrafficLight.id);
+            }
+        }
+    }
+}
+
+// 방향 계산 함수
+function calculateDirection(location1, location2) {
+    const bearing = calculateBearing(
+        location1[1] * Math.PI / 180,
+        location1[0] * Math.PI / 180,
+        location2[1] * Math.PI / 180,
+        location2[0] * Math.PI / 180
+    );
+    const index = Math.round(bearing / 90) % 4;
+    return directionsOrder[index];
+}
+
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // metres
