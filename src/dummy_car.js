@@ -1,24 +1,10 @@
 const WebSocket = require('ws');
 const fs = require('fs');
 const util = require('util');
+require('dotenv').config();
 const readFile = util.promisify(fs.readFile);
 
-const token = '';
-
-let pathPointData = null;
-
-fs.readFile('xy_list.json', 'utf8', (err, jsonString) => {
-  if (err) {
-    console.log("Error reading file from disk:", err);
-    return;
-  }
-  try {
-    const data = JSON.parse(jsonString);
-    pathPointData = data.pathPoint;
-  } catch(err) {
-    console.log('Error parsing JSON string:', err);
-  }
-});
+const token = process.env.TOKEN;
 
 const ws = new WebSocket('ws://localhost:7002/ws/my-location', {
   headers: {
@@ -100,7 +86,7 @@ ws.on('open', async function open() {
 
     ws.send(JSON.stringify(init_data));
     try {
-        const jsonString = await readFile('xy_list.json', 'utf8');
+        const jsonString = await readFile('./data/xy_list.json', 'utf8');
         const data = JSON.parse(jsonString);
         const pathPointData = data.pathPoint;
         let totalSeconds = 0;
@@ -141,25 +127,10 @@ ws.on('error', function error(err) {
   console.error(err);
 });
 
-
-
-async function checkTrafficLightState() {
-  let trafficLights = null;
-  try {
-    const jsonString = await readFile('traffic_lights.json', 'utf8');
-    const data = JSON.parse(jsonString);
-    trafficLights = data;
-  } catch(err) {
-    console.log('Error:', err);
-  }
-
-  return trafficLights;
-}
-
 async function checkTrafficLightState() {
     let trafficLights = null;
     try {
-        const jsonString = await readFile('traffic_lights.json', 'utf8');
+        const jsonString = await readFile('./data/traffic_lights.json', 'utf8');
         const data = JSON.parse(jsonString);
         trafficLights = data;
     } catch(err) {
