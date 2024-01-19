@@ -1,74 +1,80 @@
 const WebSocket = require('ws');
 const fs = require('fs');
 const util = require('util');
-require('dotenv').config();
 const readFile = util.promisify(fs.readFile);
+require('dotenv').config();
 
 const token = process.env.TOKEN;
 
-const ws = new WebSocket('ws://localhost:7002/ws/my-location', {
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-});
-
-ws.on('open', async function open() {
-    console.log('Connected to the server');
-
-    const init_data = {
-        requestType: "INIT",
-        jwt: `Bearer ${token}`,
-        data: {
-            vehicleId: 1,
-        }
-    };
-
-    ws.send(JSON.stringify(init_data));
-    try {
-        const jsonString = await readFile('./data/xy_list.json', 'utf8');
+function createWebSocket(fileName) {
+    const ws = new WebSocket('ws://localhost:7002/ws/my-location', {
+    headers: {
+        Authorization: `Bearer ${token}`,
+        },
+    });
+    console.log(fileName);
+    ws.on('open', async function open() {
+        console.log('Connected to the server');
+        const jsonString = await readFile(`./data/${fileName}`, 'utf8');
+        
         const data = JSON.parse(jsonString);
-        const pathPointData = data.pathPoint;
-        let totalSeconds = 0;
-
-        for (let i = 0; i < pathPointData.length; i++) {
-            const updateData = createUpdateData(i, pathPointData, totalSeconds, token);
-            await checkTrafficLightsAndWait(pathPointData, i);
-            ws.send(JSON.stringify(updateData));
-            console.log(`Sent: ${JSON.stringify(updateData)}`);
-
-            if (i < pathPointData.length - 1) {
-                const distance = calculateDistance(
-                    pathPointData[i].location[1],
-                    pathPointData[i].location[0],
-                    pathPointData[i+1].location[1],
-                    pathPointData[i+1].location[0]
-                );
-                const time = distance / (updateData.data.meterPerSec);
-                totalSeconds += time;
-                await new Promise(resolve => setTimeout(resolve, time * 1000));
+        const init_data = {
+            requestType: "INIT",
+            jwt: `Bearer ${token}`,
+            data: {
+                vehicleId: data.vehicleId,
             }
+        };
+
+        ws.send(JSON.stringify(init_data));
+
+        try { 
+                const pathPointData = data.pathPoint;
+                let totalSeconds = 0;
+                for (let i = 0; i < pathPointData.length; i++) {
+                    const updateData = createUpdateData(i, pathPointData, totalSeconds, token, data.vehicleId);
+                    await checkTrafficLightsAndWait(pathPointData, i);
+                    ws.send(JSON.stringify(updateData));
+
+                    // console.log(`Sent: ${JSON.stringify(updateData)}`);
+                    console.log(`vehicleId: ${data.vehicleId} (${i}/${pathPointData.length})`);
+                    if (i < pathPointData.length - 1) {
+                        const distance = calculateDistance(
+                            pathPointData[i].location[1],
+                            pathPointData[i].location[0],
+                            pathPointData[i+1].location[1],
+                            pathPointData[i+1].location[0]
+                        );
+                        const time = distance / (updateData.data.meterPerSec);
+                        totalSeconds += time;
+                        await new Promise(resolve => setTimeout(resolve, time * 1000));
+                    }
+                }
+                ws.close();
+                console.log(`Total time: ${totalSeconds} seconds`);
+            } catch(err) {
+                console.log('Error:', err);
+            }
+    });
+
+    ws.on('message', function incoming(data) {
+        const receivedData = JSON.parse(data);
+        if (receivedData.data && receivedData.data.msg !== 'OK') {
+            console.log(`Received: ${data}`);
         }
-        ws.close();
-        console.log(`Total time: ${totalSeconds} seconds`);
-    } catch(err) {
-        console.log('Error:', err);
-    }
-});
+    });
 
-ws.on('message', function incoming(data) {
-  console.log(`Received: ${data}`);
-});
+    ws.on('close', function close() {
+        console.log(`Connection closed: vehicleId ${data.vehicleId}`);
+    });
 
-ws.on('close', function close() {
-  console.log('Connection closed');
-});
-
-ws.on('error', function error(err) {
-  console.error(err);
-});
+    ws.on('error', function error(err) {
+        console.error(err);
+    });
+}
 
 // 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(i, pathPointData, totalSeconds, token) {
+function createUpdateData(i, pathPointData, totalSeconds, token, vehicleId) {
     const baseSpeed = 30 + 20 * Math.sin(Math.PI * totalSeconds / 60);
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
@@ -76,7 +82,7 @@ function createUpdateData(i, pathPointData, totalSeconds, token) {
         requestType: "UPDATE",
         jwt: `Bearer ${token}`,
         data: {
-            vehicleId: 1,
+            vehicleId: vehicleId,
             longitude: pathPointData[i].location[0],
             latitude: pathPointData[i].location[1],
             isUsingNavi: false,
@@ -136,9 +142,6 @@ async function checkTrafficLightsAndWait(pathPointData, i) {
             closestTrafficLight.location[0]
         );
 
-        console.log(`Closest traffic light: ${minDistance}`);
-        console.log(`Distance to next location: ${distanceToNextLocation}`);
-
         if(distanceToNextLocation > minDistance) {
           return ;
         }
@@ -148,7 +151,7 @@ async function checkTrafficLightsAndWait(pathPointData, i) {
         if (minDistance < 50 && closestTrafficLight.directions[direction] === 'red') {
             while (closestTrafficLight.directions[direction] === 'red') {
                 console.log(`Waiting for green light at ${closestTrafficLight.location} in the ${direction} direction. Current signal: ${closestTrafficLight.directions[direction]}`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 trafficLights = await checkTrafficLightState();
                 closestTrafficLight = trafficLights.find(light => light.id === closestTrafficLight.id);
             }
@@ -192,3 +195,18 @@ function calculateBearing(lat1, lon1, lat2, lon2) {
     bearing = (bearing + 360) % 360; 
     return bearing;
 }
+
+async function main() {
+  fs.readdir('./data', function(err, fileNames) {
+    if (err) {
+      console.error("Failed to read directory: " + err);
+      return;
+    }
+
+    const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
+
+    filteredFileNames.forEach(createWebSocket);
+  });
+}
+
+main().catch(console.error);

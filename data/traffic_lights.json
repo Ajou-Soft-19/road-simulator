@@ -6,7 +6,7 @@
     ],
     "directions": {
       "north": "green",
-      "east": "red",
+      "east": "green",
       "south": "red",
       "west": "red"
     }

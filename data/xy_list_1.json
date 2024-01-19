@@ -1,4 +1,6 @@
 {
+    "vehicleId": 2,
+    "licenseNumber": "1234",
     "pathPoint": [
             {
                 "index": 0,
