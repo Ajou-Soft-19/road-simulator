@@ -13,6 +13,7 @@ function createWebSocket(fileName) {
         },
     });
     console.log(fileName);
+
     ws.on('open', async function open() {
         console.log('Connected to the server');
         const jsonString = await readFile(`./data/${fileName}`, 'utf8');
@@ -62,10 +63,14 @@ function createWebSocket(fileName) {
         if (receivedData.data && receivedData.data.msg !== 'OK') {
             console.log(`Received: ${data}`);
         }
+
+        if(receivedData.data.code === 420) {
+            console.log('Not Inited', receivedData.data.msg);
+        }
     });
 
     ws.on('close', function close() {
-        console.log(`Connection closed: vehicleId ${data.vehicleId}`);
+        console.log(`Connection closed`);
     });
 
     ws.on('error', function error(err) {
@@ -75,7 +80,7 @@ function createWebSocket(fileName) {
 
 // 차량 위치 업데이트 데이터 생성 함수
 function createUpdateData(i, pathPointData, totalSeconds, token, vehicleId) {
-    const baseSpeed = 30 + 20 * Math.sin(Math.PI * totalSeconds / 60);
+    const baseSpeed = parsetInt(process.env.BASE_SPEED) + 20 * Math.sin(Math.PI * totalSeconds / 60);
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
     return {

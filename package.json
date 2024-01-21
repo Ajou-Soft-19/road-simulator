@@ -4,12 +4,14 @@
   "description": "",
   "main": "test_bot.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node ./src/dummy_car.js"
+    "sim": "node ./src/dummy_car.js",
+    "init": "node ./src/test_setter.js",
+    "traffic": "node ./src/traffic_controller.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.6.5",
     "dotenv": "^16.3.1",
     "fs": "^0.0.1-security",
     "ws": "^8.16.0"

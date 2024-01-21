@@ -5,7 +5,7 @@
       37.353433
     ],
     "directions": {
-      "north": "green",
+      "north": "red",
       "east": "green",
       "south": "red",
       "west": "red"
