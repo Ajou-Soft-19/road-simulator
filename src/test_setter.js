@@ -114,6 +114,7 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
         jsonData.startLocation = startLocation;
         jsonData.endLocation = endLocation;
         console.log(`startLocation: ${startLocation}, endLocation: ${endLocation}`);
+
         res = await axios.post(`${url}:7001/api/navi/route`, {
             "source": startLocation.join(','),
             "dest": endLocation.join(','),
@@ -122,17 +123,21 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
             "vehicleId": jsonData.vehicleId
         }, config).catch(e => console.log(e.response.data.data));
 
-        if (res.status == 200 && res.data.data.distance > 2000) {
-            jsonData.pathPointSize = res.data.data.pathPointSize;
-            jsonData.distance = res.data.data.distance;
-            jsonData.duration = res.data.data.duration;
-            jsonData.pathPoint = res.data.data.pathPoint;
-            fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
+
+		if(res.status != 200) {
+			console.error(`Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${res.data.code}`);
             break;
-        } else if (res.status != 200) {
-            console.error(`Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${res}`);
-            continue;
+		}
+
+        if(res.data.data.distance <= 2000) {
+    		continue;
         }
+
+        jsonData.pathPointSize = res.data.data.pathPointSize;
+        jsonData.distance = res.data.data.distance;
+        jsonData.duration = res.data.data.duration;
+        jsonData.pathPoint = res.data.data.pathPoint;
+        fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
     } while (false);
 }
 
