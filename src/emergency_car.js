@@ -1,24 +1,43 @@
 const WebSocket = require('ws');
+const axios = require('axios');
 const fs = require('fs');
 const util = require('util');
 const readFile = util.promisify(fs.readFile);
 require('dotenv').config();
 
 const token = process.env.TOKEN;
-
-function createWebSocket(fileName) {
-    const ws = new WebSocket('ws://localhost:7002/ws/my-location', {
+const url = process.env.URL;
+const config = {
     headers: {
-        Authorization: `Bearer ${token}`,
-        },
-    });
-    console.log(fileName);
+        'Authorization': `Bearer ${token}`
+    }
+};
+
+startLocation = [127.105985, 37.342602];
+endLocation = [127.107959, 37.363446];
+
+async function createWebSocket() {
+    const res = await axios.post(`${url}:7001/api/emergency/navi/route`, {
+        "source": startLocation.join(','),
+        "dest": endLocation.join(','),
+        "options": "",
+        "provider": "OSRM",
+        "vehicleId": 11
+    }, config).catch(e => console.log(e.response.data.data));
+
+    if(res.status != 200) {
+        console.error(`Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${res.data.code}`);
+        return;
+    }
+
+    const ws = new WebSocket('ws://localhost:7002/ws/emergency-location', config);
+
 
     ws.on('open', async function open() {
         console.log('Connected to the server');
-        const jsonString = await readFile(`./data/${fileName}`, 'utf8');
-        
-        const data = JSON.parse(jsonString);
+
+        const data = res.data.data;
+        const naviPathId = data.naviPathId;
         const init_data = {
             requestType: "INIT",
             jwt: `Bearer ${token}`,
@@ -34,7 +53,7 @@ function createWebSocket(fileName) {
             const baseSpeed = data.distance / data.duration;
             let totalSeconds = 0;
             for (let i = 0; i < pathPointData.length; i++) {
-                const updateData = createUpdateData(i, pathPointData, totalSeconds, token, data.vehicleId, baseSpeed);
+                const updateData = createUpdateData(naviPathId, i, pathPointData, totalSeconds, token, data.vehicleId, baseSpeed);
                 await checkTrafficLightsAndWait(pathPointData, i, ws);
                 ws.send(JSON.stringify(updateData));
 
@@ -79,11 +98,12 @@ function createWebSocket(fileName) {
 }
 
 // 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(i, pathPointData, totalSeconds, token, vehicleId, baseSpeed) {
+function createUpdateData(naviPathId, i, pathPointData, totalSeconds, token, vehicleId, baseSpeed) {
     // const baseSpeed = parseFloat(process.env.BASE_SPEED) + 20 * Math.sin(Math.PI * totalSeconds / 60);
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
-    const randomError = (Math.random() * 0.0003) - 0.00015;
+    const randomError = (Math.random() * 0.0003) - 0.00015;  // 20~30m 정도 오차
+
     return {
         requestType: "UPDATE",
         jwt: `Bearer ${token}`,
@@ -91,7 +111,8 @@ function createUpdateData(i, pathPointData, totalSeconds, token, vehicleId, base
             vehicleId: vehicleId,
             longitude: pathPointData[i].location[0] + randomError,
             latitude: pathPointData[i].location[1] + randomError,
-            isUsingNavi: false,
+            isUsingNavi: true,
+            naviPathId: naviPathId,
             meterPerSec: speed,
             direction: i > 0 ? calculateBearing(
                 pathPointData[i-1].location[1] * Math.PI/180,
@@ -218,16 +239,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function main() {
-  fs.readdir('./data', function(err, fileNames) {
-    if (err) {
-      console.error("Failed to read directory: " + err);
-      return;
-    }
-
-    const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
-
-    filteredFileNames.forEach(createWebSocket);
-  });
+  createWebSocket();
 }
 
 main().catch(console.error);
