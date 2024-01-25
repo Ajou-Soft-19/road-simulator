@@ -6,7 +6,8 @@
   "scripts": {
     "sim": "node ./src/dummy_car.js",
     "init": "node ./src/test_setter.js",
-    "traffic": "node ./src/traffic_controller.js"
+    "traffic": "node ./src/traffic_controller.js",
+    "action": "node ./src/emergency_car.js"
   },
   "author": "",
   "license": "ISC",

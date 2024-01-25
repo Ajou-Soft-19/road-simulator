@@ -15,6 +15,8 @@ const config = {
 
 startLocation = [127.105985, 37.342602];
 endLocation = [127.107959, 37.363446];
+vehicleId = 11;
+emergencyEventId = 0;
 
 async function createWebSocket() {
     const res = await axios.post(`${url}:7001/api/emergency/navi/route`, {
@@ -22,7 +24,7 @@ async function createWebSocket() {
         "dest": endLocation.join(','),
         "options": "",
         "provider": "OSRM",
-        "vehicleId": 11
+        "vehicleId": vehicleId
     }, config).catch(e => console.log(e.response.data.data));
 
     if(res.status != 200) {
@@ -42,9 +44,21 @@ async function createWebSocket() {
             requestType: "INIT",
             jwt: `Bearer ${token}`,
             data: {
-                vehicleId: data.vehicleId,
+                vehicleId: vehicleId,
             }
         };
+
+        const res2 = await axios.post(`${url}:7001/api/emergency/event/register`, {
+            "navigationPathId": data.naviPathId,
+            "vehicleId": vehicleId
+        }, config).catch(e => console.log(e.response.data.data));
+
+        if(res2.status != 200) {
+            console.error(`Failed to register emergency path ${jsonData.vehicleId}: ${res.data.code}`);
+            return;
+        }
+
+        emergencyEventId = res2.data.data.emergencyEventId;
 
         ws.send(JSON.stringify(init_data));
 
@@ -53,7 +67,7 @@ async function createWebSocket() {
             const baseSpeed = data.distance / data.duration;
             let totalSeconds = 0;
             for (let i = 0; i < pathPointData.length; i++) {
-                const updateData = createUpdateData(naviPathId, i, pathPointData, totalSeconds, token, data.vehicleId, baseSpeed);
+                const updateData = createUpdateData(naviPathId, emergencyEventId, i, pathPointData, totalSeconds, token, data.vehicleId, baseSpeed);
                 await checkTrafficLightsAndWait(pathPointData, i, ws);
                 ws.send(JSON.stringify(updateData));
 
@@ -88,8 +102,17 @@ async function createWebSocket() {
         }
     });
 
-    ws.on('close', function close() {
+    ws.on('close', async function close() {
         console.log(`Connection closed`);
+        const res = await axios.post(`${url}:7001/api/emergency/event/end`, {
+            "emergencyEventId": emergencyEventId,
+        }, config).catch(e => console.log(e.response.data.data));
+
+        if(res.status != 200) {
+            console.error(`Failed to end emergency event ${res.data.code}`);
+            return;
+        }
+
     });
 
     ws.on('error', function error(err) {
@@ -98,10 +121,10 @@ async function createWebSocket() {
 }
 
 // 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(naviPathId, i, pathPointData, totalSeconds, token, vehicleId, baseSpeed) {
+function createUpdateData(naviPathId, emergencyEventId, i, pathPointData, totalSeconds, token, vehicleId, baseSpeed) {
     // const baseSpeed = parseFloat(process.env.BASE_SPEED) + 20 * Math.sin(Math.PI * totalSeconds / 60);
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
-    const speed = baseSpeed * randomFactor;
+    const speed = baseSpeed * randomFactor + 5;
     const randomError = (Math.random() * 0.0003) - 0.00015;  // 20~30m 정도 오차
 
     return {
@@ -113,6 +136,8 @@ function createUpdateData(naviPathId, i, pathPointData, totalSeconds, token, veh
             latitude: pathPointData[i].location[1] + randomError,
             isUsingNavi: true,
             naviPathId: naviPathId,
+            emergencyEventId: emergencyEventId,
+            onEmergencyEvent: true,
             meterPerSec: speed,
             direction: i > 0 ? calculateBearing(
                 pathPointData[i-1].location[1] * Math.PI/180,
