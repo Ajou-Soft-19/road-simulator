@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const token = process.env.TOKEN;
 const url = process.env.URL;
+const socket = process.env.SOCKET_URL;
 const config = {
     headers: {
         'Authorization': `Bearer ${token}`
@@ -14,7 +15,7 @@ const config = {
 };
 
 startLocation = [127.105985, 37.342602];
-endLocation = [127.107959, 37.363446];
+endLocation = [129.074896207043,35.180326175946];
 vehicleId = 11;
 emergencyEventId = 0;
 
@@ -32,7 +33,7 @@ async function createWebSocket() {
         return;
     }
 
-    const ws = new WebSocket('ws://localhost:7002/ws/emergency-location', config);
+    const ws = new WebSocket(`${socket}:7002/ws/emergency-location`, config);
 
 
     ws.on('open', async function open() {
