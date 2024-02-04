@@ -34,8 +34,11 @@ function createWebSocket(fileName, fileNumber) {
                 const updateData = createUpdateData(i, pathPointData, totalSeconds, token, baseSpeed);
                 await checkTrafficLightsAndWait(pathPointData, i, ws);
                 ws.send(JSON.stringify(updateData));
-
-                console.log(`ID: ${fileNumber} (${i}/${pathPointData.length})`);
+                
+                const percentage = Math.floor((i / pathPointData.length) * 100);
+                if (percentage % 10 === 0) {
+                    console.log(`Progress: ${percentage}% (ID: ${fileNumber} (${i}/${pathPointData.length}))`);
+                }
                 if (i < pathPointData.length - 1) {
                     const distance = calculateDistance(
                         pathPointData[i].location[1],
@@ -77,7 +80,6 @@ function createWebSocket(fileName, fileNumber) {
 
 // 차량 위치 업데이트 데이터 생성 함수
 function createUpdateData(i, pathPointData, totalSeconds, token, baseSpeed) {
-    // const baseSpeed = parseFloat(process.env.BASE_SPEED) + 20 * Math.sin(Math.PI * totalSeconds / 60);
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
     const randomError = (Math.random() * 0.0003) - 0.00015;
