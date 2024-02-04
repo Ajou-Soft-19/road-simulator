@@ -5,9 +5,10 @@ const readFile = util.promisify(fs.readFile);
 require('dotenv').config();
 
 const token = process.env.TOKEN;
+const url = process.env.SOCKET_URL;
 
-function createWebSocket(fileName) {
-    const ws = new WebSocket('ws://localhost:7002/ws/my-location', {
+function createWebSocket(fileName, fileNumber) {
+    const ws = new WebSocket(`${url}:7002/ws/my-location`, {
     headers: {
         Authorization: `Bearer ${token}`,
         },
@@ -15,16 +16,12 @@ function createWebSocket(fileName) {
     console.log(fileName);
 
     ws.on('open', async function open() {
-        console.log('Connected to the server');
         const jsonString = await readFile(`./data/${fileName}`, 'utf8');
         
         const data = JSON.parse(jsonString);
         const init_data = {
             requestType: "INIT",
-            jwt: `Bearer ${token}`,
-            data: {
-                vehicleId: data.vehicleId,
-            }
+            jwt: `Bearer ${token}`
         };
 
         ws.send(JSON.stringify(init_data));
@@ -34,11 +31,11 @@ function createWebSocket(fileName) {
             const baseSpeed = data.distance / data.duration;
             let totalSeconds = 0;
             for (let i = 0; i < pathPointData.length; i++) {
-                const updateData = createUpdateData(i, pathPointData, totalSeconds, token, data.vehicleId, baseSpeed);
+                const updateData = createUpdateData(i, pathPointData, totalSeconds, token, baseSpeed);
                 await checkTrafficLightsAndWait(pathPointData, i, ws);
                 ws.send(JSON.stringify(updateData));
 
-                console.log(`vehicleId: ${data.vehicleId} (${i}/${pathPointData.length})`);
+                console.log(`ID: ${fileNumber} (${i}/${pathPointData.length})`);
                 if (i < pathPointData.length - 1) {
                     const distance = calculateDistance(
                         pathPointData[i].location[1],
@@ -79,7 +76,7 @@ function createWebSocket(fileName) {
 }
 
 // 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(i, pathPointData, totalSeconds, token, vehicleId, baseSpeed) {
+function createUpdateData(i, pathPointData, totalSeconds, token, baseSpeed) {
     // const baseSpeed = parseFloat(process.env.BASE_SPEED) + 20 * Math.sin(Math.PI * totalSeconds / 60);
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
@@ -88,7 +85,6 @@ function createUpdateData(i, pathPointData, totalSeconds, token, vehicleId, base
         requestType: "UPDATE",
         jwt: `Bearer ${token}`,
         data: {
-            vehicleId: vehicleId,
             longitude: pathPointData[i].location[0] + randomError,
             latitude: pathPointData[i].location[1] + randomError,
             isUsingNavi: false,
@@ -226,7 +222,13 @@ async function main() {
 
     const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
 
-    filteredFileNames.forEach(createWebSocket);
+    filteredFileNames.forEach((fileName) => {
+      const match = fileName.match(/xy_list_(\d+)\.json/);
+      if (match) {
+        const fileNumber = parseInt(match[1]);
+        createWebSocket(fileName, fileNumber);
+      }
+    });
   });
 }
 

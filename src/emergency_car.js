@@ -15,8 +15,8 @@ const config = {
 };
 
 startLocation = [127.105985, 37.342602];
-endLocation = [129.074896207043,35.180326175946];
-vehicleId = 11;
+endLocation = [127.122909, 37.352029];
+vehicleId = 5;
 emergencyEventId = 0;
 
 async function createWebSocket() {

@@ -11,7 +11,6 @@ const config = {
     }
 };
 
-
 function getRandomInt(min, max) {
   min = Math.ceil(min);
   max = Math.floor(max);
@@ -104,8 +103,7 @@ async function getRandomLocation(latitude, longitude, radiusInKm) {
 }
 
 async function saveLocationToFile(filePath, centerLatitude, centerLongitude, radiusInKm, minDistance) {
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    const jsonData = JSON.parse(fileContent);
+    const jsonData = {};
     let res, startLocation, endLocation;
 
     do {
@@ -120,16 +118,15 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
             "dest": endLocation.join(','),
             "options": "",
             "provider": "OSRM",
-            "vehicleId": jsonData.vehicleId
         }, config).catch(e => console.log(e.response.data.data));
 
 
 		if(res.status != 200) {
 			console.error(`Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${res.data.code}`);
-            break;
+			break;
 		}
 
-        if(res.data.data.distance <= 2000) {
+        if(res.data.data.distance <= minDistance) {
     		continue;
         }
 
@@ -146,19 +143,16 @@ function setPathPoint() {
   const centerLongitude = parseFloat(process.env.CENTER_LONGITUDE);
   const radiusInKm = parseFloat(process.env.RADIUS_IN_KM);
   const minDistance = parseFloat(process.env.MIN_DISTANCE);
+  const testCaseCount = parseInt(process.env.TEST_CASE_COUNT);
 
-  const files = fs.readdirSync('./data');
-  for (const file of files) {
-    if (file.startsWith('xy_list_') && file.endsWith('.json')) {
-      saveLocationToFile(`./data/${file}`, centerLatitude, centerLongitude, radiusInKm, minDistance);
-    }
+  for (let i = 0; i < testCaseCount; i++) {
+    saveLocationToFile(`./data/xy_list_${i}.json`, centerLatitude, centerLongitude, radiusInKm, minDistance);
   }
 }
 
 
 async function setTestData() {
-    await setvehicle();
-
+    //await setvehicle();
     setPathPoint();
 }
 
