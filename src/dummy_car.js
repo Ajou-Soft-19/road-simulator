@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const token = process.env.TOKEN;
 const url = process.env.SOCKET_URL;
+const testCount = process.env.TEST_CASE_COUNT;
 
 function createWebSocket(fileName, fileNumber) {
     const ws = new WebSocket(`${url}:7002/ws/my-location`, {
@@ -30,15 +31,8 @@ function createWebSocket(fileName, fileNumber) {
             const pathPointData = data.pathPoint;
             const baseSpeed = data.distance / data.duration;
             let totalSeconds = 0;
+            let accumulatedTime = 0; 
             for (let i = 0; i < pathPointData.length; i++) {
-                const updateData = createUpdateData(i, pathPointData, totalSeconds, token, baseSpeed);
-                await checkTrafficLightsAndWait(pathPointData, i, ws);
-                ws.send(JSON.stringify(updateData));
-                
-                const percentage = Math.floor((i / pathPointData.length) * 100);
-                if (percentage % 10 === 0) {
-                    console.log(`Progress: ${percentage}% (ID: ${fileNumber} (${i}/${pathPointData.length}))`);
-                }
                 if (i < pathPointData.length - 1) {
                     const distance = calculateDistance(
                         pathPointData[i].location[1],
@@ -46,9 +40,25 @@ function createWebSocket(fileName, fileNumber) {
                         pathPointData[i+1].location[1],
                         pathPointData[i+1].location[0]
                     );
-                    const time = distance / (updateData.data.meterPerSec);
-                    totalSeconds += time;
-                    await new Promise(resolve => setTimeout(resolve, time * 1000));
+                    const time = distance / baseSpeed;
+                    const numOfSegments = Math.max(Math.ceil(time), 1);
+                    const segmentTime = time / numOfSegments;
+
+                    const segmentPoints = interpolate(pathPointData[i].location, pathPointData[i+1].location, numOfSegments, 0, numOfSegments);
+
+                    for (let j = 0; j < segmentPoints.length; j++) {
+                        totalSeconds += segmentTime;
+                        accumulatedTime += segmentTime;
+
+                        const updateData = createUpdateData(i, pathPointData, segmentPoints[j], baseSpeed);
+
+                        if (accumulatedTime >= 1) {
+                            await checkTrafficLightsAndWait(pathPointData, i, segmentPoints[j]);
+                            ws.send(JSON.stringify(updateData));
+                            await new Promise(resolve => setTimeout(resolve, accumulatedTime * 1000));
+                            accumulatedTime = 0;
+                        }
+                    }
                 }
             }
             ws.close();
@@ -78,24 +88,36 @@ function createWebSocket(fileName, fileNumber) {
     });
 }
 
+function interpolate(start, end, numOfSegments, startIndex, endIndex) {
+    const points = [];
+    for(let i = startIndex; i <= endIndex; i++) {
+        const ratio = i / numOfSegments;
+        const lat = start[0] + ratio * (end[0] - start[0]);
+        const lon = start[1] + ratio * (end[1] - start[1]);
+        points.push([lat, lon]);
+    }
+    return points;
+}
+
 // 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(i, pathPointData, totalSeconds, token, baseSpeed) {
+function createUpdateData(i, pathPointData, point, baseSpeed) {
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
-    const randomError = (Math.random() * 0.0003) - 0.00015;
+    // const randomError = (Math.random() * 0.0003) - 0.00015;
+    const randomError = 0;
+
     return {
         requestType: "UPDATE",
-        jwt: `Bearer ${token}`,
         data: {
-            longitude: pathPointData[i].location[0] + randomError,
-            latitude: pathPointData[i].location[1] + randomError,
+            longitude: point[0] + randomError,
+            latitude: point[1] + randomError,
             isUsingNavi: false,
             meterPerSec: speed,
             direction: i > 0 ? calculateBearing(
-                pathPointData[i-1].location[1] * Math.PI/180,
-                pathPointData[i-1].location[0] * Math.PI/180,
                 pathPointData[i].location[1] * Math.PI/180,
-                pathPointData[i].location[0] * Math.PI/180
+                pathPointData[i].location[0] * Math.PI/180,
+                point[1] * Math.PI/180,
+                point[0] * Math.PI/180 
             ) : 0,
             timestamp: new Date().toISOString()
         }
@@ -116,7 +138,7 @@ async function checkTrafficLightState() {
 }
 
 // 신호등 상태 확인 및 대기 함수
-async function checkTrafficLightsAndWait(pathPointData, i) {
+async function checkTrafficLightsAndWait(pathPointData, i, point) {
     if(i >= pathPointData.length - 1) return ;
 
     let trafficLights = await checkTrafficLightState();
@@ -125,8 +147,8 @@ async function checkTrafficLightsAndWait(pathPointData, i) {
 
     for (let j = 0; j < trafficLights.length; j++) {
         const distanceToTrafficLight = calculateDistance(
-            pathPointData[i+1].location[1],
-            pathPointData[i+1].location[0],
+            point[1],
+            point[0],
             trafficLights[j].location[1],
             trafficLights[j].location[0]
         );
@@ -138,8 +160,8 @@ async function checkTrafficLightsAndWait(pathPointData, i) {
     }
 
     const distanceToNextLocation = calculateDistance(
-        pathPointData[i+1].location[1],
-        pathPointData[i+1].location[0],
+         point[1],
+            point[0],
         closestTrafficLight.location[1],
         closestTrafficLight.location[0]
     );
@@ -216,6 +238,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function main() {
+
   fs.readdir('./data', function(err, fileNames) {
     if (err) {
       console.error("Failed to read directory: " + err);
@@ -224,13 +247,14 @@ async function main() {
 
     const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
 
-    filteredFileNames.forEach((fileName) => {
+    for (let i = 0; i < filteredFileNames.length && i < testCount; i++) { // 여기를 수정했습니다.
+      const fileName = filteredFileNames[i];
       const match = fileName.match(/xy_list_(\d+)\.json/);
       if (match) {
         const fileNumber = parseInt(match[1]);
         createWebSocket(fileName, fileNumber);
       }
-    });
+    }
   });
 }
 

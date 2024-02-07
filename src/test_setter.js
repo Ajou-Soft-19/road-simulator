@@ -118,7 +118,7 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
             "dest": endLocation.join(','),
             "options": "",
             "provider": "OSRM",
-        }, config).catch(e => console.log(e.response.data.data));
+        }, config).catch(e => console.log(e.response.data));
 
 
 		if(res.status != 200) {

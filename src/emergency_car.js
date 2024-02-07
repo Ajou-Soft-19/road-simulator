@@ -15,7 +15,9 @@ const config = {
 };
 
 startLocation = [127.105985, 37.342602];
-endLocation = [127.122909, 37.352029];
+endLocation = [127.075371, 37.355660];
+// endLocation = [127.122909, 37.352029];
+//endLocation = [129.074896207043,35.180326175946]; 부산
 vehicleId = 5;
 emergencyEventId = 0;
 
@@ -62,17 +64,13 @@ async function createWebSocket() {
         emergencyEventId = res2.data.data.emergencyEventId;
 
         ws.send(JSON.stringify(init_data));
-
+        
         try { 
             const pathPointData = data.pathPoint;
             const baseSpeed = data.distance / data.duration;
             let totalSeconds = 0;
+            let accumulatedTime = 0; 
             for (let i = 0; i < pathPointData.length; i++) {
-                const updateData = createUpdateData(naviPathId, emergencyEventId, i, pathPointData, totalSeconds, token, data.vehicleId, baseSpeed);
-                await checkTrafficLightsAndWait(pathPointData, i, ws);
-                ws.send(JSON.stringify(updateData));
-
-                console.log(`vehicleId: ${data.vehicleId} (${i}/${pathPointData.length})`);
                 if (i < pathPointData.length - 1) {
                     const distance = calculateDistance(
                         pathPointData[i].location[1],
@@ -80,9 +78,25 @@ async function createWebSocket() {
                         pathPointData[i+1].location[1],
                         pathPointData[i+1].location[0]
                     );
-                    const time = distance / (updateData.data.meterPerSec);
-                    totalSeconds += time;
-                    await new Promise(resolve => setTimeout(resolve, time * 1000));
+                    const time = distance / baseSpeed;
+                    const numOfSegments = Math.max(Math.ceil(time), 1);
+                    const segmentTime = time / numOfSegments;
+
+                    const segmentPoints = interpolate(pathPointData[i].location, pathPointData[i+1].location, numOfSegments, 0, numOfSegments);
+
+                    for (let j = 0; j < segmentPoints.length; j++) {
+                        totalSeconds += segmentTime;
+                        accumulatedTime += segmentTime;
+
+                        const updateData = createUpdateData(naviPathId, emergencyEventId, i, pathPointData, segmentPoints[j], vehicleId, baseSpeed);
+
+                        if (accumulatedTime >= 1) {
+                            await checkTrafficLightsAndWait(pathPointData, i, segmentPoints[j]);
+                            ws.send(JSON.stringify(updateData));
+                            await new Promise(resolve => setTimeout(resolve, accumulatedTime * 1000));
+                            accumulatedTime = 0;
+                        }
+                    }
                 }
             }
             ws.close();
@@ -121,30 +135,40 @@ async function createWebSocket() {
     });
 }
 
+function interpolate(start, end, numOfSegments, startIndex, endIndex) {
+    const points = [];
+    for(let i = startIndex; i <= endIndex; i++) {
+        const ratio = i / numOfSegments;
+        const lat = start[0] + ratio * (end[0] - start[0]);
+        const lon = start[1] + ratio * (end[1] - start[1]);
+        points.push([lat, lon]);
+    }
+    return points;
+}
+
 // 차량 위치 업데이트 데이터 생성 함수
-function createUpdateData(naviPathId, emergencyEventId, i, pathPointData, totalSeconds, token, vehicleId, baseSpeed) {
-    // const baseSpeed = parseFloat(process.env.BASE_SPEED) + 20 * Math.sin(Math.PI * totalSeconds / 60);
+function createUpdateData(naviPathId, emergencyEventId, i, pathPointData, point, vehicleId, baseSpeed) {
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor + 5;
-    const randomError = (Math.random() * 0.0003) - 0.00015;  // 20~30m 정도 오차
+    // const randomError = (Math.random() * 0.0003) - 0.00015;
+    const randomError = 0;
 
     return {
         requestType: "UPDATE",
-        jwt: `Bearer ${token}`,
         data: {
             vehicleId: vehicleId,
-            longitude: pathPointData[i].location[0] + randomError,
-            latitude: pathPointData[i].location[1] + randomError,
+            longitude: point[0] + randomError,
+            latitude: point[1] + randomError,
             isUsingNavi: true,
             naviPathId: naviPathId,
             emergencyEventId: emergencyEventId,
             onEmergencyEvent: true,
             meterPerSec: speed,
             direction: i > 0 ? calculateBearing(
-                pathPointData[i-1].location[1] * Math.PI/180,
-                pathPointData[i-1].location[0] * Math.PI/180,
                 pathPointData[i].location[1] * Math.PI/180,
-                pathPointData[i].location[0] * Math.PI/180
+                pathPointData[i].location[0] * Math.PI/180,
+                point[1] * Math.PI/180,
+                point[0] * Math.PI/180 
             ) : 0,
             timestamp: new Date().toISOString()
         }
@@ -165,7 +189,7 @@ async function checkTrafficLightState() {
 }
 
 // 신호등 상태 확인 및 대기 함수
-async function checkTrafficLightsAndWait(pathPointData, i) {
+async function checkTrafficLightsAndWait(pathPointData, i, point) {
     if(i >= pathPointData.length - 1) return ;
 
     let trafficLights = await checkTrafficLightState();
@@ -174,8 +198,8 @@ async function checkTrafficLightsAndWait(pathPointData, i) {
 
     for (let j = 0; j < trafficLights.length; j++) {
         const distanceToTrafficLight = calculateDistance(
-            pathPointData[i+1].location[1],
-            pathPointData[i+1].location[0],
+            point[1],
+            point[0],
             trafficLights[j].location[1],
             trafficLights[j].location[0]
         );
@@ -187,8 +211,8 @@ async function checkTrafficLightsAndWait(pathPointData, i) {
     }
 
     const distanceToNextLocation = calculateDistance(
-        pathPointData[i+1].location[1],
-        pathPointData[i+1].location[0],
+         point[1],
+            point[0],
         closestTrafficLight.location[1],
         closestTrafficLight.location[0]
     );
