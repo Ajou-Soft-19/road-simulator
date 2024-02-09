@@ -4,16 +4,11 @@ const util = require('util');
 const readFile = util.promisify(fs.readFile);
 require('dotenv').config();
 
-const token = process.env.TOKEN;
 const url = process.env.SOCKET_URL;
 const testCount = process.env.TEST_CASE_COUNT;
 
 function createWebSocket(fileName, fileNumber) {
-    const ws = new WebSocket(`${url}:7002/ws/my-location`, {
-    headers: {
-        Authorization: `Bearer ${token}`,
-        },
-    });
+    const ws = new WebSocket(`${url}:7002/ws/my-location`);
     console.log(fileName);
 
     ws.on('open', async function open() {
@@ -22,7 +17,6 @@ function createWebSocket(fileName, fileNumber) {
         const data = JSON.parse(jsonString);
         const init_data = {
             requestType: "INIT",
-            jwt: `Bearer ${token}`
         };
 
         ws.send(JSON.stringify(init_data));
