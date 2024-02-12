@@ -64,7 +64,7 @@ function createWebSocket(fileName, fileNumber) {
 
     ws.on('message', function incoming(data) {
         const receivedData = JSON.parse(data);
-        if (receivedData.data && receivedData.data.msg !== 'OK') {
+        if (receivedData.data && receivedData.data.msg !== 'OK' && receivedData.messageType !== 'RESPONSE') {
             console.log(`Received: ${data}`);
         }
 

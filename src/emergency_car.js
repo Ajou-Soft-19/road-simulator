@@ -14,10 +14,14 @@ const config = {
     }
 };
 
-startLocation = [127.105985, 37.342602];
-endLocation = [127.075371, 37.355660];
+// startLocation = [127.105985, 37.342602];
+// //endLocation = [127.122261, 37.351809];
+// endLocation = [127.108654, 37.347371];
 // endLocation = [127.122909, 37.352029];
 //endLocation = [129.074896207043,35.180326175946]; 부산
+
+startLocation = [127.043559, 37.280735];
+endLocation = [127.045622,37.285365];
 vehicleId = 5;
 emergencyEventId = 0;
 
@@ -150,8 +154,7 @@ function interpolate(start, end, numOfSegments, startIndex, endIndex) {
 function createUpdateData(naviPathId, emergencyEventId, i, pathPointData, point, vehicleId, baseSpeed) {
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor + 5;
-    // const randomError = (Math.random() * 0.0003) - 0.00015;
-    const randomError = 0;
+    const randomError = (Math.random() * 0.00009) - 0.000045;
 
     return {
         requestType: "UPDATE",
@@ -236,7 +239,7 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
             trafficLights = await checkTrafficLightState();
             closestTrafficLight = trafficLights.find(light => light.id === closestTrafficLight.id);
         }
-    } 
+    }
 }
 
 // 방향 계산
