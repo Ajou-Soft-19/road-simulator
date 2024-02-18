@@ -14,14 +14,14 @@ const config = {
     }
 };
 
-// startLocation = [127.105985, 37.342602];
-// //endLocation = [127.122261, 37.351809];
+startLocation = [127.105985, 37.342602];
+endLocation = [127.122261, 37.351809];
 // endLocation = [127.108654, 37.347371];
 // endLocation = [127.122909, 37.352029];
 //endLocation = [129.074896207043,35.180326175946]; 부산
 
-startLocation = [127.043559, 37.280735];
-endLocation = [127.045622,37.285365];
+startLocation = [127.043570, 37.281888];
+endLocation = [127.045160,37.286349];
 vehicleId = 5;
 emergencyEventId = 0;
 
@@ -237,7 +237,9 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
             console.log(`Waiting for green light at ${closestTrafficLight.location} in the ${direction} direction.`);
             await new Promise(resolve => setTimeout(resolve, 4000));
             trafficLights = await checkTrafficLightState();
-            closestTrafficLight = trafficLights.find(light => light.id === closestTrafficLight.id);
+            closestTrafficLight = trafficLights.find(light => 
+                JSON.stringify(light.location) === JSON.stringify(closestTrafficLight.location)
+            );
         }
     }
 }

@@ -177,9 +177,11 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
             console.log(`Waiting for green light at ${closestTrafficLight.location} in the ${direction} direction.`);
             await new Promise(resolve => setTimeout(resolve, 4000));
             trafficLights = await checkTrafficLightState();
-            closestTrafficLight = trafficLights.find(light => light.id === closestTrafficLight.id);
+            closestTrafficLight = trafficLights.find(light => 
+                JSON.stringify(light.location) === JSON.stringify(closestTrafficLight.location)
+            );
         }
-    } 
+    }
 }
 
 // 방향 계산
