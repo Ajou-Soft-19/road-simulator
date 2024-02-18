@@ -7,59 +7,12 @@ require('dotenv').config();
 const url = process.env.SOCKET_URL;
 const testCount = process.env.TEST_CASE_COUNT;
 
-function createWebSocket(fileName, fileNumber) {
+function createWebSocket(fileName) {
     const ws = new WebSocket(`${url}:7002/ws/my-location`);
     console.log(fileName);
 
-    ws.on('open', async function open() {
-        const jsonString = await readFile(`./data/${fileName}`, 'utf8');
-        
-        const data = JSON.parse(jsonString);
-        const init_data = {
-            requestType: "INIT",
-        };
-
-        ws.send(JSON.stringify(init_data));
-
-        try { 
-            const pathPointData = data.pathPoint;
-            const baseSpeed = data.distance / data.duration;
-            let totalSeconds = 0;
-            let accumulatedTime = 0; 
-            for (let i = 0; i < pathPointData.length; i++) {
-                if (i < pathPointData.length - 1) {
-                    const distance = calculateDistance(
-                        pathPointData[i].location[1],
-                        pathPointData[i].location[0],
-                        pathPointData[i+1].location[1],
-                        pathPointData[i+1].location[0]
-                    );
-                    const time = distance / baseSpeed;
-                    const numOfSegments = Math.max(Math.ceil(time), 1);
-                    const segmentTime = time / numOfSegments;
-
-                    const segmentPoints = interpolate(pathPointData[i].location, pathPointData[i+1].location, numOfSegments, 0, numOfSegments);
-
-                    for (let j = 0; j < segmentPoints.length; j++) {
-                        totalSeconds += segmentTime;
-                        accumulatedTime += segmentTime;
-
-                        const updateData = createUpdateData(i, pathPointData, segmentPoints[j], baseSpeed);
-
-                        if (accumulatedTime >= 1) {
-                            await checkTrafficLightsAndWait(pathPointData, i, segmentPoints[j]);
-                            ws.send(JSON.stringify(updateData));
-                            await new Promise(resolve => setTimeout(resolve, accumulatedTime * 1000));
-                            accumulatedTime = 0;
-                        }
-                    }
-                }
-            }
-            ws.close();
-            console.log(`Total time: ${totalSeconds} seconds`);
-        } catch(err) {
-            console.log('Error:', err);
-        }
+    ws.on('open', function() {
+        open(ws, fileName);
     });
 
     ws.on('message', function incoming(data) {
@@ -82,6 +35,58 @@ function createWebSocket(fileName, fileNumber) {
     });
 }
 
+async function open(ws, fileName) {
+    const jsonString = await readFile(`./data/${fileName}`, 'utf8');
+        
+    const data = JSON.parse(jsonString);
+    const init_data = {
+        requestType: "INIT",
+    };
+
+    ws.send(JSON.stringify(init_data));
+
+    try { 
+        const pathPointData = data.pathPoint;
+        const baseSpeed = data.distance / data.duration;
+        let totalSeconds = 0;
+        let accumulatedTime = 0; 
+        for (let i = 0; i < pathPointData.length; i++) {
+            if (i < pathPointData.length - 1) {
+                const distance = calculateDistance(
+                    pathPointData[i].location[1],
+                    pathPointData[i+1].location[1],
+                    pathPointData[i].location[0],
+                    pathPointData[i+1].location[0]
+                );
+
+                // Calculate time to reach next point and interpolate when necessary
+                const time = distance / baseSpeed;
+                const numOfSegments = Math.max(Math.ceil(time), 1);
+                const segmentTime = time / numOfSegments;
+                const segmentPoints = interpolate(pathPointData[i].location, pathPointData[i+1].location, numOfSegments, 0, numOfSegments);
+
+                for (let j = 0; j < segmentPoints.length; j++) {
+                    totalSeconds += segmentTime;
+                    accumulatedTime += segmentTime;
+
+                    const updateData = createUpdateData(i, pathPointData, segmentPoints[j], baseSpeed);
+
+                    if (accumulatedTime >= 1) {
+                        await checkTrafficLightsAndWait(pathPointData, i, segmentPoints[j]);
+                        ws.send(JSON.stringify(updateData));
+                        await new Promise(resolve => setTimeout(resolve, accumulatedTime * 1000));
+                        accumulatedTime = 0;
+                    }
+                }
+            }
+        }
+        ws.close();
+        console.log(`Total time: ${totalSeconds} seconds`);
+    } catch(err) {
+        console.log('Error:', err);
+    }
+}
+
 function interpolate(start, end, numOfSegments, startIndex, endIndex) {
     const points = [];
     for(let i = startIndex; i <= endIndex; i++) {
@@ -93,12 +98,12 @@ function interpolate(start, end, numOfSegments, startIndex, endIndex) {
     return points;
 }
 
-// 차량 위치 업데이트 데이터 생성 함수
+// Create update data for each point
+// assum gps data is not accurate, so add some random error about 5m
 function createUpdateData(i, pathPointData, point, baseSpeed) {
     const randomFactor = 1 + (Math.random() - 0.5) / 10;
     const speed = baseSpeed * randomFactor;
-    // const randomError = (Math.random() * 0.0003) - 0.00015;
-    const randomError = 0;
+    const randomError = (Math.random() * 0.0003) - 0.00015;
 
     return {
         requestType: "UPDATE",
@@ -131,7 +136,7 @@ async function checkTrafficLightState() {
     return trafficLights;
 }
 
-// 신호등 상태 확인 및 대기 함수
+// check traffic light state and wait for green light
 async function checkTrafficLightsAndWait(pathPointData, i, point) {
     if(i >= pathPointData.length - 1) return ;
 
@@ -164,10 +169,10 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
       return ;
     }
 
-    // 신호등 선정, 30도 간격으로 계산
+    // set the direction of the traffic light
     let direction = calculateDirection(pathPointData[i].location, pathPointData[i+1].location);
 
-    // 신호등이 없을 경우 가장 가까운 방향의 신호등 설정
+    // if the traffic light does not have the direction, find the closest direction
     if (!closestTrafficLight.directions.hasOwnProperty(direction)) {
         direction = findClosestDirection(closestTrafficLight.directions, direction);
     }
@@ -184,7 +189,7 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
     }
 }
 
-// 방향 계산
+// find the closest direction to the target direction
 function findClosestDirection(directions, targetDirection) {
   let closestDirection = null;
   let minDifference = Infinity;
@@ -243,12 +248,11 @@ async function main() {
 
     const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
 
-    for (let i = 0; i < filteredFileNames.length && i < testCount; i++) { // 여기를 수정했습니다.
+    for (let i = 0; i < filteredFileNames.length && i < testCount; i++) {
       const fileName = filteredFileNames[i];
       const match = fileName.match(/xy_list_(\d+)\.json/);
       if (match) {
-        const fileNumber = parseInt(match[1]);
-        createWebSocket(fileName, fileNumber);
+        createWebSocket(fileName);
       }
     }
   });
