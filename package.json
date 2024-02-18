@@ -4,10 +4,12 @@
   "description": "",
   "main": "test_bot.js",
   "scripts": {
-    "sim": "node ./src/dummy_car.js",
     "init": "node ./src/test_setter.js",
+    "simulation": "node ./src/test_runner.js",
     "traffic": "node ./src/traffic_controller.js",
-    "action": "node ./src/emergency_car.js"
+    "action": "node ./src/emergency_car.js",
+    "dummy": "node ./src/dummy_car.js",
+    "clean": "node ./src/clean.js"
   },
   "author": "",
   "license": "ISC",

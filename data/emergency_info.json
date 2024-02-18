@@ -1,0 +1,38 @@
+{
+  "id": "ajouepas@ajou.ac.kr",
+  "pw": "ajouepas1234!?",
+  "vehicleInfos": [
+    {
+      "vehicleId": 27,
+      "vehicleType": "FIRE_TRUCK_MEDIUM",
+      "licenceNumber": "947Y1201"
+    },
+    {
+      "vehicleId": 28,
+      "vehicleType": "AMBULANCE",
+      "licenceNumber": "202O1855"
+    }
+  ],
+  "locations": [
+    {
+      "startLocation": [
+        127.105985,
+        37.342602
+      ],
+      "endLocation": [
+        127.122909,
+        37.352029
+      ]
+    },
+    {
+      "startLocation": [
+        127.116122,
+        37.338076
+      ],
+      "endLocation": [
+        127.122909,
+        37.352029
+      ]
+    }
+  ]
+}

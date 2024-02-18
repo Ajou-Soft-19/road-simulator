@@ -1,15 +1,12 @@
 const axios = require('axios');
+const fs_promises = require('fs').promises;
 const fs = require('fs');
 require('dotenv').config();
 
-const token = process.env.TOKEN;
-const url = process.env.URL;
-const testCaseCount = parseInt(process.env.TEST_CASE_COUNT);
-const config = {
-    headers: {
-        'Authorization': `Bearer ${token}`
-    }
-};
+const service_url = process.env.SERVICE_URL;
+const login_url = process.env.LOGIN_URL;
+var config = {};
+var accessToken = '';
 
 function getRandomInt(min, max) {
   min = Math.ceil(min);
@@ -23,68 +20,56 @@ function getRandomChar() {
 }
 
 function getRandomVehicleType() {
-  const vehicleTypes = ['SMALL_CAR', 'MEDIUM_CAR', 'LARGE_TRUCK', 'LARGE_CAR'];
+  const vehicleTypes = ['AMBULANCE', 'FIRE_TRUCK_MEDIUM', 'FIRE_TRUCK_LARGE'];
   return vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)];
 }
 
 async function setvehicle() {
-  try {
-    const res = await axios.get(`${url}:7001/api/vehicles/all`, config);
-    const vehicles = res.data.data;
-    const requiredVehicleCount = testCaseCount;
+	console.log('[Setting] Setting vehicles');
+	try {
+		const vehicleInfoRes = await axios.get(`${service_url}/api/vehicles/all`, config);
+		const vehicles = vehicleInfoRes.data.data;
+		const requiredVehicleCount = parseInt(process.env.EMERGENCY_VEHICLE_COUNT);
+		
+		const jsonString = await fs_promises.readFile('./data/emergency_info.json', 'utf8');
+		const configData = JSON.parse(jsonString);
+		configData.vehicleInfos = [];
+		
+		for (let i = 0; i < vehicles.length && i < requiredVehicleCount; i++) {
+			configData.vehicleInfos.push({
+				"vehicleId": vehicles[i].vehicleId,
+				"vehicleType": vehicles[i].vehicleType,
+				"licenceNumber": vehicles[i].licenceNumber
+			});
+		}
 
-    // 기존에 등록된 차량의 ID를 JSON 파일에 쓰기
-    for (let i = 0; i < vehicles.length; i++) {
-        const filePath = `./data/xy_list_${i + 1}.json`;
-        let jsonData;
-        if (fs.existsSync(filePath)) {
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-            jsonData = JSON.parse(fileContent);
-        } else {
-            jsonData = {};
-        }
-        jsonData.vehicleId = vehicles[i].vehicleId;
-        jsonData.vehicleType = vehicles[i].vehicleType;
-        jsonData.licenceNumber = vehicles[i].licenceNumber;
-        fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
-    }
+		if (vehicles.length < requiredVehicleCount) {
+		const newVehicles = requiredVehicleCount - vehicles.length;
 
-    if (vehicles.length < requiredVehicleCount) {
-      const newVehicles = requiredVehicleCount - vehicles.length;
+		for (let i = 0; i < newVehicles; i++) {
+			let licenceNumber;
+			let res;
+			do {
+				licenceNumber = `${getRandomInt(100,999)}${getRandomChar()}${getRandomInt(1000,9999)}`;
+				const vehicleType = getRandomVehicleType();
+				res = await axios.post(`${service_url}/api/vehicles`, {
+						"countryCode": "ko-KR",
+						"licenceNumber": licenceNumber,
+						"vehicleType": vehicleType
+					}, config).catch(e => console.log(e));
+				configData.vehicleInfos.push({
+					"vehicleId": res.data.data.vehicleId,
+					"vehicleType": vehicleType,
+					"licenceNumber": licenceNumber
+				});
+			} while (res.status != 200);
+		}
+	}
 
-      for (let i = 0; i < newVehicles; i++) {
-        let licenceNumber;
-        let res;
-        do {
-          licenceNumber = `${getRandomInt(100,999)}${getRandomChar()}${getRandomInt(1000,9999)}`;
-          const vehicleType = getRandomVehicleType();
-          res = await axios.post(`${url}:7001/api/vehicles`, {
-              "countryCode": "ko-KR",
-              "licenceNumber": licenceNumber,
-              "vehicleType": vehicleType
-          }, config).catch(e => e);
-        } while (res.status != 200);
-
-        const newVehicleId = res.data.data.vehicleId;
-        const newVehicleType = res.data.data.vehicleType;
-        const newLicenceNumber = res.data.data.licenceNumber;
-        const filePath = `./data/xy_list_${vehicles.length + i + 1}.json`;
-        let jsonData;
-        if (fs.existsSync(filePath)) {
-          const fileContent = fs.readFileSync(filePath, 'utf8');
-          jsonData = JSON.parse(fileContent);
-        } else {
-          jsonData = {};
-        }
-        jsonData.vehicleId = newVehicleId;
-        jsonData.vehicleType = newVehicleType;
-        jsonData.licenceNumber = newLicenceNumber;
-        fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
-      }
-    }
-  } catch (error) {
-    console.error(`Failed to update vehicles: ${error}`);
-  }
+	fs.writeFileSync('./data/emergency_info.json', JSON.stringify(configData, null, 2));
+	} catch (error) {
+		console.error(`Failed to update vehicles: ${error}`);
+	}
 }
 
 
@@ -113,12 +98,12 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
         jsonData.endLocation = endLocation;
         console.log(`startLocation: ${startLocation}, endLocation: ${endLocation}`);
 
-        res = await axios.post(`${url}:7001/api/navi/route`, {
+        res = await axios.post(`${service_url}/api/navi/route`, {
             "source": startLocation.join(','),
             "dest": endLocation.join(','),
             "options": "",
             "provider": "OSRM",
-        }, config).catch(e => console.log(e.response.data));
+        }, config).catch(e => console.log(e));
 
 
 		if(res.status != 200) {
@@ -126,7 +111,7 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
 			break;
 		}
 
-        if(res.data.data.distance <= minDistance) {
+        if(res.data.data.distance < minDistance) {
     		continue;
         }
 
@@ -134,26 +119,66 @@ async function saveLocationToFile(filePath, centerLatitude, centerLongitude, rad
         jsonData.distance = res.data.data.distance;
         jsonData.duration = res.data.data.duration;
         jsonData.pathPoint = res.data.data.pathPoint;
-        fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
-    } while (false);
+		fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2));
+		break;
+    } while (true);
 }
 
-function setPathPoint() {
-  const centerLatitude = parseFloat(process.env.CENTER_LATITUDE);
-  const centerLongitude = parseFloat(process.env.CENTER_LONGITUDE);
-  const radiusInKm = parseFloat(process.env.RADIUS_IN_KM);
-  const minDistance = parseFloat(process.env.MIN_DISTANCE);
-  const testCaseCount = parseInt(process.env.TEST_CASE_COUNT);
+async function setPathPoint() {
+	console.log('[Setting] Setting path points');
+	const centerLatitude = parseFloat(process.env.CENTER_LATITUDE);
+	const centerLongitude = parseFloat(process.env.CENTER_LONGITUDE);
+	const radiusInKm = parseFloat(process.env.RADIUS_IN_KM);
+	const minDistance = parseFloat(process.env.MIN_DISTANCE);
+	const testCaseCount = parseInt(process.env.ORDINARY_VEHICLE_COUNT);
 
-  for (let i = 0; i < testCaseCount; i++) {
-    saveLocationToFile(`./data/xy_list_${i}.json`, centerLatitude, centerLongitude, radiusInKm, minDistance);
-  }
+	const dirPath = './data/paths';
+	if (!fs.existsSync(dirPath)) {
+		await fs_promises.mkdir(dirPath, { recursive: true });
+	}
+
+	const files = await fs_promises.readdir('./data/paths');
+	for (const file of files) {
+		if (file.startsWith('xy_list_')) {
+			await fs_promises.unlink(`./data/paths/${file}`);
+		}
+	}
+
+	for (let i = 0; i < testCaseCount; i++) {
+		console.log(`[Setting] Setting path points ${i}`);
+		await saveLocationToFile(`./data/paths/xy_list_${i}.json`, centerLatitude, centerLongitude, radiusInKm, minDistance);
+	}
 }
 
+async function getAccessToken(configData) {
+    const res = await axios.post(`${login_url}/api/account/auth`, {
+        "loginType": "EMAIL_PW",
+        "email": configData.id,
+        "password": configData.pw
+    }).catch(e => console.log(e.response.data.data));
+
+    if(res.status != 200) {
+        console.error(`Failed to get access token ${res.data.code}`);
+        return;
+    }
+
+    return res.data.data.accessToken;
+}
 
 async function setTestData() {
-    //await setvehicle();
-    setPathPoint();
+	const jsonString = await fs_promises.readFile('./data/emergency_info.json', 'utf8');
+    const configData = JSON.parse(jsonString);
+    accessToken = await getAccessToken(configData);
+	console.log(`Successfully got access token`);
+    config = {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`
+        }
+    };
+
+    await setvehicle();
+    await setPathPoint();
+	console.log('[Setting] Done');
 }
 
 setTestData();

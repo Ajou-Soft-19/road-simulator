@@ -1,40 +1,33 @@
 const WebSocket = require('ws');
 const axios = require('axios');
+const fs = require('fs').promises;
 require('dotenv').config();
 
-const token = process.env.TOKEN;
-const servie_server = process.env.URL;
+const servie_server = process.env.SERVICE_URL;
 const socket_url = process.env.SOCKET_URL;
-vehicleId = 5;
-emergencyEventId = 0;
-const config = {
-    headers: {
-        'Authorization': `Bearer ${token}`
-    }
-};
+const login_url = process.env.LOGIN_URL;
+const emergencyVehicleCount = process.env.EMERGENCY_VEHICLE_COUNT;
+var config = {};
+var accessToken = '';
 
-// Start and end location
-startLocation = [127.105985, 37.342602];
-endLocation = [127.122909, 37.352029];
-
-async function createWebSocket() {
-    const pathRes = await axios.post(`${servie_server}:7001/api/emergency/navi/route`, {
+async function createWebSocket(vehicleId, startLocation, endLocation) {
+    const pathRes = await axios.post(`${servie_server}/api/emergency/navi/route`, {
         "source": startLocation.join(','),
         "dest": endLocation.join(','),
         "options": "",
         "provider": "OSRM",
         "vehicleId": vehicleId
-    }, config).catch(e => console.log(e.response.data.data));
+    }, config).catch(e => console.log(e));
 
     if(pathRes.status != 200) {
         console.error(`Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${pathRes.data.code}`);
         return;
     }
 
-    const ws = new WebSocket(`${socket_url}:7002/ws/emergency-location`, config);
+    const ws = new WebSocket(`${socket_url}/ws/emergency-location`, config);
 
     ws.on('open', function() {
-        startEmergencyEvent(ws, pathRes);
+        startEmergencyEvent(ws, vehicleId, pathRes);
     });
 
     ws.on('message', function incoming(data) {
@@ -50,7 +43,7 @@ async function createWebSocket() {
 
     ws.on('close', async function close() {
         console.log(`Connection closed`);
-        const res = await axios.post(`${servie_server}:7001/api/emergency/event/end`, {
+        const res = await axios.post(`${servie_server}/api/emergency/event/end`, {
             "emergencyEventId": emergencyEventId,
         }, config).catch(e => console.log(e.response.data.data));
 
@@ -65,20 +58,20 @@ async function createWebSocket() {
     });
 }
 
-async function startEmergencyEvent(ws, pathRes) {
+async function startEmergencyEvent(ws, vehicleId, pathRes) {
     console.log('Connected to the server');
 
     const pathData = pathRes.data.data;
     const naviPathId = pathData.naviPathId;
     const init_data = {
         requestType: "INIT",
-        jwt: `Bearer ${token}`,
+        jwt: `Bearer ${accessToken}`,
         data: {
             vehicleId: vehicleId,
         }
     };
 
-    const eventRes = await axios.post(`${servie_server}:7001/api/emergency/event/register`, {
+    const eventRes = await axios.post(`${servie_server}/api/emergency/event/register`, {
         "navigationPathId": pathData.naviPathId,
         "vehicleId": vehicleId
     }, config).catch(e => console.log(e.response.data.data));
@@ -195,8 +188,43 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-async function main() {
-  createWebSocket();
+async function getAccessToken(configData) {
+    const res = await axios.post(`${login_url}/api/account/auth`, {
+        "loginType": "EMAIL_PW",
+        "email": configData.id,
+        "password": configData.pw
+    }).catch(e => console.log(e.response.data.data));
+
+    if(res.status != 200) {
+        console.error(`Failed to get access token ${res.data.code}`);
+        return;
+    }
+
+    return res.data.data.accessToken;
 }
 
-main().catch(console.error);
+async function startEmergencyVehicles() {
+    const jsonString = await fs.readFile('./data/emergency_info.json', 'utf8');
+    const configData = JSON.parse(jsonString);
+
+    accessToken = await getAccessToken(configData);
+    console.log(`Successfully got access token`);
+    
+    config = {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`
+        }
+    };
+
+    for (i = 0; i < emergencyVehicleCount; i++) {
+        const vehicle = configData.vehicleInfos[i];
+        const location = configData.locations[i];
+        if(location === undefined || location === undefined) {
+            console.error(`No location data for vehicle ${vehicle.vehicleId}`);
+            continue;
+        }
+        createWebSocket(vehicle.vehicleId, location.startLocation, location.endLocation);
+    }
+}
+
+exports.startEmergencyVehicles = startEmergencyVehicles;

@@ -4,11 +4,11 @@ const util = require('util');
 const readFile = util.promisify(fs.readFile);
 require('dotenv').config();
 
-const url = process.env.SOCKET_URL;
-const testCount = process.env.TEST_CASE_COUNT;
+const socket_url = process.env.SOCKET_URL;
+const testCount = process.env.ORDINARY_VEHICLE_COUNT;
 
 function createWebSocket(fileName) {
-    const ws = new WebSocket(`${url}:7002/ws/my-location`);
+    const ws = new WebSocket(`${socket_url}/ws/my-location`);
     console.log(fileName);
 
     ws.on('open', function() {
@@ -36,7 +36,7 @@ function createWebSocket(fileName) {
 }
 
 async function open(ws, fileName) {
-    const jsonString = await readFile(`./data/${fileName}`, 'utf8');
+    const jsonString = await readFile(`./data/paths/${fileName}`, 'utf8');
         
     const data = JSON.parse(jsonString);
     const init_data = {
@@ -54,8 +54,8 @@ async function open(ws, fileName) {
             if (i < pathPointData.length - 1) {
                 const distance = calculateDistance(
                     pathPointData[i].location[1],
-                    pathPointData[i+1].location[1],
                     pathPointData[i].location[0],
+                    pathPointData[i+1].location[1],
                     pathPointData[i+1].location[0]
                 );
 
@@ -179,7 +179,7 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
 
     if (minDistance < 50 && closestTrafficLight.directions[direction] === 'red') {
         while (closestTrafficLight.directions[direction] === 'red') {
-            console.log(`Waiting for green light at ${closestTrafficLight.location} in the ${direction} direction.`);
+            //console.log(`Waiting for green light at ${closestTrafficLight.location} in the ${direction} direction.`);
             await new Promise(resolve => setTimeout(resolve, 4000));
             trafficLights = await checkTrafficLightState();
             closestTrafficLight = trafficLights.find(light => 
@@ -238,9 +238,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-async function main() {
+async function startDummyVechicles() {
 
-  fs.readdir('./data', function(err, fileNames) {
+  fs.readdir('./data/paths', function(err, fileNames) {
     if (err) {
       console.error("Failed to read directory: " + err);
       return;
@@ -258,4 +258,4 @@ async function main() {
   });
 }
 
-main().catch(console.error);
+exports.startDummyVechicles = startDummyVechicles;

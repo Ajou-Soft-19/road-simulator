@@ -36,4 +36,8 @@ function toggleTrafficLightState() {
   console.log('Traffic light state changed');
 }
 
-setInterval(toggleTrafficLightState, 20000);
+function turnTrafficControllerOn() {
+  setInterval(toggleTrafficLightState, 20000);
+}
+
+exports.turnTrafficControllerOn = turnTrafficControllerOn;
