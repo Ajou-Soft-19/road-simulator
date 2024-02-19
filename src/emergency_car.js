@@ -20,7 +20,7 @@ async function createWebSocket(vehicleId, startLocation, endLocation) {
     }, config).catch(e => console.log(e));
 
     if(pathRes.status != 200) {
-        console.error(`Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${pathRes.data.code}`);
+        console.error(`[Emergency] Failed to get pathPoint for vehicle ${jsonData.vehicleId}: ${pathRes.data.code}`);
         return;
     }
 
@@ -33,22 +33,22 @@ async function createWebSocket(vehicleId, startLocation, endLocation) {
     ws.on('message', function incoming(data) {
         const receivedData = JSON.parse(data);
         if (receivedData.data && receivedData.data.msg !== 'OK') {
-            console.log(`Received: ${data}`);
+            console.log(`[Emergency] Received: ${data}`);
         }
 
         if(receivedData.data.code === 420) {
-            console.log('Not Inited', receivedData.data.msg);
+            console.log('[Emergency] Not Inited', receivedData.data.msg);
         }
     });
 
     ws.on('close', async function close() {
-        console.log(`Connection closed`);
+        console.log(`[Emergency] Connection closed`);
         const res = await axios.post(`${servie_server}/api/emergency/event/end`, {
             "emergencyEventId": emergencyEventId,
         }, config).catch(e => console.log(e.response.data.data));
 
         if(res.status != 200) {
-            console.error(`Failed to end emergency event ${res.data.code}`);
+            console.error(`[Emergency] Failed to end emergency event ${res.data.code}`);
             return;
         }
     });
@@ -59,7 +59,7 @@ async function createWebSocket(vehicleId, startLocation, endLocation) {
 }
 
 async function startEmergencyEvent(ws, vehicleId, pathRes) {
-    console.log('Connected to the server');
+    console.log('[Emergency] Connected to the server');
 
     const pathData = pathRes.data.data;
     const naviPathId = pathData.naviPathId;
@@ -77,7 +77,7 @@ async function startEmergencyEvent(ws, vehicleId, pathRes) {
     }, config).catch(e => console.log(e.response.data.data));
 
     if(eventRes.status != 200) {
-        console.error(`Failed to register emergency path ${jsonData.vehicleId}: ${pathRes.data.code}`);
+        console.error(`[Emergency] Failed to register emergency path ${jsonData.vehicleId}: ${pathRes.data.code}`);
         return;
     }
 
@@ -119,9 +119,9 @@ async function startEmergencyEvent(ws, vehicleId, pathRes) {
             }
         }
         ws.close();
-        console.log(`Total time: ${totalSeconds} seconds`);
+        console.log(`[Emergency] Total time: ${totalSeconds} seconds`);
     } catch(err) {
-        console.log('Error:', err);
+        console.log('[Emergency] Error:', err);
     }
 }
 
@@ -196,7 +196,7 @@ async function getAccessToken(configData) {
     }).catch(e => console.log(e.response.data.data));
 
     if(res.status != 200) {
-        console.error(`Failed to get access token ${res.data.code}`);
+        console.error(`[Emergency] Failed to get access token ${res.data.code}`);
         return;
     }
 
@@ -208,7 +208,7 @@ async function startEmergencyVehicles() {
     const configData = JSON.parse(jsonString);
 
     accessToken = await getAccessToken(configData);
-    console.log(`Successfully got access token`);
+    console.log(`[Emergency] Successfully got access token`);
     
     config = {
         headers: {
@@ -216,11 +216,12 @@ async function startEmergencyVehicles() {
         }
     };
 
+    console.log(`[Emergency] Start emergency vehicles`);
     for (i = 0; i < emergencyVehicleCount; i++) {
         const vehicle = configData.vehicleInfos[i];
         const location = configData.locations[i];
-        if(location === undefined || location === undefined) {
-            console.error(`No location data for vehicle ${vehicle.vehicleId}`);
+        if(vehicle === undefined || location === undefined) {
+            console.error(`[Emergency] No location data for vehicle ${vehicle.vehicleId}`);
             continue;
         }
         createWebSocket(vehicle.vehicleId, location.startLocation, location.endLocation);

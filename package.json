@@ -5,10 +5,10 @@
   "main": "test_bot.js",
   "scripts": {
     "init": "node ./src/test_setter.js",
-    "simulation": "node ./src/test_runner.js",
-    "traffic": "node ./src/traffic_controller.js",
-    "action": "node ./src/emergency_car.js",
-    "dummy": "node ./src/dummy_car.js",
+    "sim": "node ./src/test_runner.js",
+    "traffic": "node ./src/test_runner.js traffic",
+    "emergency": "node ./src/test_runner.js emergency",
+    "dummy": "node ./src/test_runner.js dummy",
     "clean": "node ./src/clean.js"
   },
   "author": "",

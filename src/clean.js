@@ -2,6 +2,7 @@ const fs_promises = require('fs').promises;
 const fs = require('fs');
 
 async function clean() {
+    console.log('Cleaning path points for dummy cars');
     const dirPath = './data/paths';
     if (!fs.existsSync(dirPath)) {
         return;

@@ -9,7 +9,6 @@ const testCount = process.env.ORDINARY_VEHICLE_COUNT;
 
 function createWebSocket(fileName) {
     const ws = new WebSocket(`${socket_url}/ws/my-location`);
-    console.log(fileName);
 
     ws.on('open', function() {
         open(ws, fileName);
@@ -18,16 +17,16 @@ function createWebSocket(fileName) {
     ws.on('message', function incoming(data) {
         const receivedData = JSON.parse(data);
         if (receivedData.data && receivedData.data.msg !== 'OK' && receivedData.messageType !== 'RESPONSE') {
-            console.log(`Received: ${data}`);
+            console.log(`[Dummy] Received: ${data}`);
         }
 
         if(receivedData.data.code === 420) {
-            console.log('Not Inited', receivedData.data.msg);
+            console.log('[Dummy] Not Inited', receivedData.data.msg);
         }
     });
 
     ws.on('close', function close() {
-        console.log(`Connection closed`);
+        console.log(`[Dummy] Connection closed`);
     });
 
     ws.on('error', function error(err) {
@@ -81,9 +80,9 @@ async function open(ws, fileName) {
             }
         }
         ws.close();
-        console.log(`Total time: ${totalSeconds} seconds`);
+        console.log(`[Dummy] Total time: ${totalSeconds} seconds`);
     } catch(err) {
-        console.log('Error:', err);
+        console.log('[Dummy] Error:', err);
     }
 }
 
@@ -130,7 +129,7 @@ async function checkTrafficLightState() {
         const data = JSON.parse(jsonString);
         trafficLights = data;
     } catch(err) {
-        console.log('Error:', err);
+        console.log('[Dummy] Error:', err);
     }
 
     return trafficLights;
@@ -239,23 +238,23 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function startDummyVechicles() {
+    console.log('[Dummy] Start dummy vehicles');
+    fs.readdir('./data/paths', function(err, fileNames) {
+        if (err) {
+        console.error("[Dummy] Failed to read directory: " + err);
+        return;
+        }
 
-  fs.readdir('./data/paths', function(err, fileNames) {
-    if (err) {
-      console.error("Failed to read directory: " + err);
-      return;
-    }
-
-    const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
-
-    for (let i = 0; i < filteredFileNames.length && i < testCount; i++) {
-      const fileName = filteredFileNames[i];
-      const match = fileName.match(/xy_list_(\d+)\.json/);
-      if (match) {
-        createWebSocket(fileName);
-      }
-    }
-  });
+        const filteredFileNames = fileNames.filter(fileName => fileName.startsWith('xy_list_') && fileName.endsWith('.json'));
+        console.log(`[Dummy] Found ${filteredFileNames.length} files`);
+        for (let i = 0; i < filteredFileNames.length && i < testCount; i++) {
+            const fileName = filteredFileNames[i];
+            const match = fileName.match(/xy_list_(\d+)\.json/);
+            if (match) {
+                createWebSocket(fileName);
+            }
+        }
+    });
 }
 
 exports.startDummyVechicles = startDummyVechicles;
