@@ -193,7 +193,7 @@ async function getAccessToken(configData) {
         "loginType": "EMAIL_PW",
         "email": configData.id,
         "password": configData.pw
-    }).catch(e => console.log(e.response.data.data));
+    }).catch(e => console.log(e));
 
     if(res.status != 200) {
         console.error(`[Emergency] Failed to get access token ${res.data.code}`);
