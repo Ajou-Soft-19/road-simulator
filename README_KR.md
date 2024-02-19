@@ -11,9 +11,9 @@ npm i
 ## 2. .env 파일 생성 또는 수정
 
 ```bash
-LOGIN_URL=http://35.216.118.43:7000
-SERVICE_URL=http://35.216.118.43:7001
-SOCKET_URL=ws://35.216.118.43:7002
+LOGIN_URL=https://ajou-epas.xyz:7000
+SERVICE_URL=https://ajou-epas.xyz:7001
+SOCKET_URL=wss://ajou-epas.xyz:7002
 
 CENTER_LATITUDE=37.351855 => 기준 위도
 CENTER_LONGITUDE=127.105333 => 기준 경도
