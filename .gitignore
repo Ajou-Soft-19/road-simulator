@@ -2,3 +2,5 @@
 /tmp
 /data/xy_list*.json
 /data/paths
+/data
+.env
