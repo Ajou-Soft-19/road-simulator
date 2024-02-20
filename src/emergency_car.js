@@ -9,8 +9,10 @@ const login_url = process.env.LOGIN_URL;
 const emergencyVehicleCount = process.env.EMERGENCY_VEHICLE_COUNT;
 var config = {};
 var accessToken = '';
+const endFlags = new Array(emergencyVehicleCount).fill(false);
+const emergencyEventIds = new Array(emergencyVehicleCount).fill(0);
 
-async function createWebSocket(vehicleId, startLocation, endLocation) {
+async function createWebSocket(index, vehicleId, startLocation, endLocation) {
     const pathRes = await axios.post(`${servie_server}/api/emergency/navi/route`, {
         "source": startLocation.join(','),
         "dest": endLocation.join(','),
@@ -27,7 +29,7 @@ async function createWebSocket(vehicleId, startLocation, endLocation) {
     const ws = new WebSocket(`${socket_url}/ws/emergency-location`, config);
 
     ws.on('open', function() {
-        startEmergencyEvent(ws, vehicleId, pathRes);
+        startEmergencyEvent(ws, vehicleId, index, pathRes);
     });
 
     ws.on('message', function incoming(data) {
@@ -44,21 +46,23 @@ async function createWebSocket(vehicleId, startLocation, endLocation) {
     ws.on('close', async function close() {
         console.log(`[Emergency] Connection closed`);
         const res = await axios.post(`${servie_server}/api/emergency/event/end`, {
-            "emergencyEventId": emergencyEventId,
+            "emergencyEventId": emergencyEventIds[index],
         }, config).catch(e => console.log(e.response.data.data));
 
         if(res.status != 200) {
             console.error(`[Emergency] Failed to end emergency event ${res.data.code}`);
             return;
         }
+        endFlags[index] = true;
     });
 
     ws.on('error', function error(err) {
         console.error(err);
+        endFlags[index] = true;
     });
 }
 
-async function startEmergencyEvent(ws, vehicleId, pathRes) {
+async function startEmergencyEvent(ws, vehicleId, index, pathRes) {
     console.log('[Emergency] Connected to the server');
 
     const pathData = pathRes.data.data;
@@ -81,9 +85,11 @@ async function startEmergencyEvent(ws, vehicleId, pathRes) {
         return;
     }
 
-    emergencyEventId = eventRes.data.data.emergencyEventId;
+    const emergencyEventId = eventRes.data.data.emergencyEventId;
+    emergencyEventIds[index] = emergencyEventId;
     ws.send(JSON.stringify(init_data));
-
+    console.log(`[Emergency] Start emergency event ${emergencyEventId} for vehicle ${vehicleId}`);
+    
     try { 
         const pathPointData = pathData.pathPoint;
         const baseSpeed = pathData.distance / pathData.duration;
@@ -216,7 +222,7 @@ async function startEmergencyVehicles() {
         }
     };
 
-    console.log(`[Emergency] Start emergency vehicles`);
+    console.log(`[Emergency] Starting emergency vehicles`);
     for (i = 0; i < emergencyVehicleCount; i++) {
         const vehicle = configData.vehicleInfos[i];
         const location = configData.locations[i];
@@ -224,8 +230,22 @@ async function startEmergencyVehicles() {
             console.error(`[Emergency] No location data for vehicle ${vehicle.vehicleId}`);
             continue;
         }
-        createWebSocket(vehicle.vehicleId, location.startLocation, location.endLocation);
+        createWebSocket(i, vehicle.vehicleId, location.startLocation, location.endLocation);
     }
+    
+    while (true) {
+        if(endFlags.every(flag => flag === true)) {
+            break;
+        }
+        await new Promise(resolve => setTimeout(resolve,  5000));
+    }
+
+    console.log(`[Emergency] All emergency vehicles ended`);
+    for (i = 5; i >= 1; i--) {
+        console.log(`[Emergency] Ending Simulation in ${i} seconds`);
+        await new Promise(resolve => setTimeout(resolve,  1000));
+    }
+    process.exit(0);
 }
 
 exports.startEmergencyVehicles = startEmergencyVehicles;
