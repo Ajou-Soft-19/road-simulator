@@ -51,19 +51,13 @@ The format of emergency_info.json is as follows. It has been set as below for te
       "vehicleId": 27,
       "vehicleType": "FIRE_TRUCK_MEDIUM",
       "licenceNumber": "947Y1201"
-    },
+    }
   ],
   "locations": [
     {
-      "startLocation": [
-        127.105985,
-        37.342602
-      ],
-      "endLocation": [
-        127.122909,
-        37.352029
-      ]
-    },
+      "startLocation": [127.105985, 37.342602],
+      "endLocation": [127.122909, 37.352029]
+    }
   ]
 }
 ```
@@ -77,30 +71,24 @@ traffix data is saved in `./data/traffic_lights.json`.
 
 ```json
 [
-    {
-        "location": [
-            127.106012,
-            37.353433
-        ],
-        "directions": {
-            "0": "green",
-            "90": "red",
-            "180": "red",
-            "270": "red"
-        }
-    },
-    {
-        "location": [
-            127.108994,
-            37.345825
-        ],
-        "directions": {
-            "0": "red",
-            "90": "red",
-            "180": "red",
-            "270": "green"
-        }
+  {
+    "location": [127.106012, 37.353433],
+    "directions": {
+      "0": "green",
+      "90": "red",
+      "180": "red",
+      "270": "red"
     }
+  },
+  {
+    "location": [127.108994, 37.345825],
+    "directions": {
+      "0": "red",
+      "90": "red",
+      "180": "red",
+      "270": "green"
+    }
+  }
 ]
 ```
 
@@ -110,48 +98,49 @@ traffix data is saved in `./data/traffic_lights.json`.
 - Set the traffic light data by checking the coordinates and direction of the intersection.
 - The `traffic_controller.js` file updates the state of the traffic lights every 20 seconds.
 
-## 4. Test Case Execution
+## 4. Running the Simulation
 
 ```bash
 npm run sim
 ```
 
-- Starts the simulation of ordinary vehicles, emergency vehicles, and traffic lights.
-- The simulation can be visually checked through the monitoring page of the `EPSA` app.
+- This starts the simulation for normal vehicles, emergency vehicles, and traffic lights.
+- The simulation can be visually monitored through the `EPSA` app's monitoring page.
 
 <div align="center">
     <img src="https://github.com/Ajou-Soft-19/road-simulator/assets/32717522/ade13bb5-91ff-47ae-8567-16cff7a2908d" width="500">
 </div>
 
-- The `gif` above is a screenshot of the `EPAS monitoring page`.
+- The image above is a visualized simulation video through the EPAS app.
 
 ```bash
 npm run traffic
 ```
 
-- Starts the traffic light simulation.
+- This starts the simulation for traffic lights.
 
 ```bash
 npm run emergency
 ```
 
-- Starts the emergency vehicle simulation.
+- This starts the simulation for emergency vehicles.
 
 ```bash
 npm run dummy
 ```
 
-- Starts the ordinary vehicle simulation.
+- This starts the simulation for normal vehicles.
 
-## 5. End of Test Case
+## 5. Ending the Simulation
 
-- To end the test case, press `Ctrl + C` on Windows.
+- The simulation automatically ends when the simulation for emergency vehicles ends.
+- If you want to end the test during the simulation, press `Ctrl + C` for Windows.
 
-## 6. Removal of Test Case
+## 6. Removing Test Cases
 
 ```bash
 npm run clean
 ```
 
-- Removes the created test case.
-- Only the data of ordinary vehicles is removed. The data of emergency vehicles must be removed manually.
+- This removes the generated test cases.
+- Only data for normal vehicles are removed. Data for emergency vehicles must be removed manually.
