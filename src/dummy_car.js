@@ -140,6 +140,7 @@ async function checkTrafficLightsAndWait(pathPointData, i, point) {
     if(i >= pathPointData.length - 1) return ;
 
     let trafficLights = await checkTrafficLightState();
+    if(!trafficLights) return;
     let closestTrafficLight = null;
     let minDistance = Infinity;
 
