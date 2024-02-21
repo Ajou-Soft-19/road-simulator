@@ -111,7 +111,7 @@ npm run sim
     <img src="https://github.com/Ajou-Soft-19/road-simulator/assets/32717522/ade13bb5-91ff-47ae-8567-16cff7a2908d" width="500">
 </div>
 
-- The image above is a visualized simulation video through the EPAS app.
+- The image above is a visualized simulation video through the [EPAS APP](https://github.com/Ajou-Soft-19/service-app).
 
 ```bash
 npm run traffic
